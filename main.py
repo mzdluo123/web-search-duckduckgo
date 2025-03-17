@@ -57,19 +57,26 @@ async def search_duckduckgo(query: str, limit: int) -> list:
     
 
 async def fetch_url(url: str):
+    jina_timeout = 15.0
+    raw_html_timeout = 5.0
     url = f"https://r.jina.ai/{url}"
     async with httpx.AsyncClient() as client:
         try:
             print(f"fetching result from\n{url}")
-            response = await client.get(url, timeout=15.0)
+            response = await client.get(url, timeout=jina_timeout)
             """ using jina api to convert html to markdown """
             text = response.text
-            """ using raw html """
-            # soup = BeautifulSoup(response.text, "html.parser")
-            # text = soup.get_text()
             return text
         except httpx.TimeoutException:
-            return "Timeout error"
+            try:
+                print("Jina API timed out, fetching raw HTML...")
+                response = await client.get(url, timeout=raw_html_timeout)
+                """ using raw html """
+                soup = BeautifulSoup(response.text, "html.parser")
+                text = soup.get_text()
+                return text
+            except httpx.TimeoutException:
+                return "Timeout error"
 
 @mcp.tool()
 async def search_and_fetch(query: str, limit: int = 3):
