@@ -35,6 +35,24 @@ This project provides an MCP (Model Context Protocol) server that allows you to 
         }
     }
     ```
+    
+    **the above configuration is not working, you might need to clone the repository to local pc and use the following configuration**
+
+    ```json
+    {
+        "mcpServers": {
+            "web-search-duckduckgo": {
+                "command": "uv",
+                "args": [
+                    "--directory",
+                    "/path/to/web-search-duckduckgo",
+                    "run",
+                    "main.py"
+                ]
+            }
+        }
+    }
+    ```
 
 3. **Tool**
     *   In your MCP client (e.g., Claude), you can now use the following tools:
