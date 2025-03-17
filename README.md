@@ -28,7 +28,7 @@ This project provides an MCP (Model Context Protocol) server that allows you to 
                 "command": "uvx",
                 "args": [
                     "--from",
-                    "git+https://github.com/kouui/.git@main",
+                    "git+https://github.com/kouui/web-search-duckduckgo.git@main",
                     "main.py"
                 ]
             }
