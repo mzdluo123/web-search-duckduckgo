@@ -11,4 +11,4 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp = "main:main"
+mcp = "main"
