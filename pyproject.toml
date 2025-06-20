@@ -11,4 +11,4 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp = "main"
+search-with-duckduckgo = "main:main"

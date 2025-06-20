@@ -187,7 +187,8 @@ def test_fetch_url():
         print(f"Test failed: {e}")
         assert False
 
-if __name__ == "__main__":
-    # Required packages: pip install mcp httpx beautifulsoup4 python-dotenv
+def main():
     mcp.run(transport="stdio")
-    # test_fetch_url()
+
+if __name__ == "__main__":
+    main()
