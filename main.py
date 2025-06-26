@@ -63,7 +63,7 @@ async def fetch_url(url: str):
     async with httpx.AsyncClient() as client:
         try:
             print(f"fetching result from\n{url}")
-            response = await client.get(url, timeout=jina_timeout)
+            response = await client.get(url, timeout=jina_timeout,headers={"X-Retain-Images": "none"})
             """ using jina api to convert html to markdown """
             text = response.text
             return text
