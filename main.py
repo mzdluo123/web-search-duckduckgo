@@ -1,13 +1,17 @@
 from mcp.server.fastmcp import FastMCP
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 import httpx
 from bs4 import BeautifulSoup
 import asyncio
+from markdownify import markdownify as md
 
 
 # Initialize FastMCP and load environment variables
+# mcp = FastMCP("search",settings={
+#     "port":8000
+# })
 mcp = FastMCP("search")
-load_dotenv()
+#load_dotenv()
 
 USER_AGENT = "search-app/1.0"
 DUCKDUCKGO_URL = "https://html.duckduckgo.com/html/"
@@ -56,27 +60,54 @@ async def search_duckduckgo(query: str, limit: int) -> list:
         return [{"error": f"Search failed: {str(e)}"}]
     
 
-async def fetch_url(url: str):
-    jina_timeout = 15.0
+async def fetch_url(url: str, client: httpx.AsyncClient):
+    """
+    Fetch the content of a URL using a provided httpx.AsyncClient.
+    优先用 Jina API 获取 markdown，超时则回退到原始 HTML。
+    建议调用方复用 client。
+    """
+    jina_timeout = 30.0
     raw_html_timeout = 5.0
-    url = f"https://r.jina.ai/{url}"
-    async with httpx.AsyncClient() as client:
+    jina_url = f"https://r.jina.ai/{url}"
+    # Jina API重试3次
+    for attempt in range(3):
         try:
-            print(f"fetching result from\n{url}")
-            response = await client.get(url, timeout=jina_timeout,headers={"X-Retain-Images": "none"})
-            """ using jina api to convert html to markdown """
-            text = response.text
-            return text
+            response = await client.get(jina_url, timeout=jina_timeout, headers={"X-Retain-Images": "none",
+                                                                                 "X-With-Links-Summary": "all"})
+            # using jina api to convert html to markdown
+            return response.text
         except httpx.TimeoutException:
-            try:
-                print("Jina API timed out, fetching raw HTML...")
-                response = await client.get(url, timeout=raw_html_timeout)
-                """ using raw html """
-                soup = BeautifulSoup(response.text, "html.parser")
-                text = soup.get_text()
-                return text
-            except httpx.TimeoutException:
-                return "Timeout error"
+            if attempt < 2:
+                await asyncio.sleep(1)
+            else:
+                try:
+                    response = await client.get(jina_url, timeout=raw_html_timeout)
+                    # using raw html
+                    soup = BeautifulSoup(response.text, "html.parser")
+                    return soup.get_text()
+                except httpx.TimeoutException:
+                    return "Timeout error"
+                
+# async def fetch_url(url: str, client: httpx.AsyncClient):
+#     html_timeout = 5.0
+#     if not url.startswith("http"):
+#         url = "http://" + url  # Ensure URL starts with http:// or https://
+#     # 重试3次
+#     for attempt in range(3):
+#         try:
+#             response = await client.get(url, timeout=html_timeout, follow_redirects=True)
+#             return md(response.text)
+#         except httpx.TimeoutException:
+#             if attempt < 2:
+#                 await asyncio.sleep(1)
+#             else:
+#                 try:
+#                     response = await client.get(url, timeout=html_timeout)
+#                     # using raw html
+#                     soup = BeautifulSoup(response.text, "html.parser")
+#                     return md(soup.get_text())
+#                 except httpx.TimeoutException:
+#                     return "Timeout error"
 
 @mcp.tool()
 async def search_and_fetch(query: str, limit: int = 3):
@@ -108,16 +139,12 @@ async def search_and_fetch(query: str, limit: int = 3):
     if not results:
         return [{"message": f"No results found for '{query}'"}]
     
-    # Create a list of fetch_url coroutines
-    fetch_tasks = [fetch_url(item["url"]) for item in results]
-    
-    # Execute all fetch requests in parallel and wait for results
-    summaries = await asyncio.gather(*fetch_tasks)
-    
-    # Assign summaries to their respective result items
-    for item, summary in zip(results, summaries):
-        item["summary"] = summary
-    
+    # 复用 httpx.AsyncClient
+    async with httpx.AsyncClient() as client:
+        fetch_tasks = [fetch_url(item["url"], client) for item in results]
+        summaries = await asyncio.gather(*fetch_tasks)
+        for item, summary in zip(results, summaries):
+            item["summary"] = summary
     return results
 
 # @mcp.tool()
@@ -165,30 +192,27 @@ async def fetch(url: str):
     if not isinstance(url, str):
         raise ValueError("Query must be a non-empty string")
     
-    text = await fetch_url(url)
-    
+    async with httpx.AsyncClient() as client:
+        text = await fetch_url(url, client)
     return text
 
 def test_fetch_url():
     import asyncio
     async def run_test():
-        # Mocking. In a real test, you would mock this, but for this example, we will call a real url.
-        result = await fetch_url("communityforums.atmeta.com/t5/Get-Help/Beat-saber-wont-load/td-p/1187498")
-        # In a real test you would assert the returned result with a known good result.
-        # For this example, we will just test that a result is returned.
-        assert isinstance(result, str)
-        # Add more specific assertions here.
-        print("result recieved")
-        print(result)
+            result = await search_and_fetch("hello")
+            print(result)
+            assert isinstance(result, str)
+            print("result recieved")
+            print(result)
 
-    try:
-        asyncio.run(run_test())
-    except Exception as e:
-        print(f"Test failed: {e}")
-        assert False
+    
+    asyncio.run(run_test())
+
 
 def main():
     mcp.run(transport="stdio")
+    #mcp.run(transport="sse")
 
 if __name__ == "__main__":
     main()
+    #test_fetch_url()
